@@ -17,6 +17,11 @@ public class EstadoCuentaItemProcessor implements ItemProcessor<MovimientoCuenta
 
     @Override
     public EstadoCuenta process(MovimientoCuenta movimiento) {
+        if (movimiento.getDescripcion() == null || movimiento.getDescripcion().isBlank()){
+            // Si la descripcion del movimiento es null o blank, lanza excepcion
+            throw new MovimientoCuentaNoValidoException("El movimiento no tiene descripcion");
+        }
+
         // Se suma el monto del movimiento a los valores acumulados de la cuenta
         sumarMovimiento(movimiento);
         

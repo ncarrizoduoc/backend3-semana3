@@ -11,6 +11,7 @@ public class MovimientoCuenta {
     private Long id;
     private Long cuentaId;
     private Integer monto;
+    private String descripcion;
     private boolean ultimoDelGrupo = false;
 
 }

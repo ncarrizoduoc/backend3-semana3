@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS intereses (
 CREATE TABLE IF NOT EXISTS movimiento_cuenta (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     cuenta_id BIGINT NOT NULL,
-    monto INT NOT NULL
+    monto INT NOT NULL,
+    descripcion VARCHAR(255) NOT NULL
 );
 
 -- Index para acelerar el ordenamiento por cuenta_id de la tabla MOVIMIENTO_CUENTA

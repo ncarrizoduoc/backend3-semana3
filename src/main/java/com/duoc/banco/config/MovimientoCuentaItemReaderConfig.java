@@ -33,6 +33,7 @@ public class MovimientoCuentaItemReaderConfig {
             MovimientoCuenta movimientoCuenta = new MovimientoCuenta();
             movimientoCuenta.setCuentaId(fieldSet.readLong("cuentaId"));
             movimientoCuenta.setMonto(fieldSet.readInt("monto"));
+            movimientoCuenta.setDescripcion(fieldSet.readString("descripcion"));
             return movimientoCuenta;
         };
     }
