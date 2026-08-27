@@ -4,15 +4,18 @@ import java.time.format.DateTimeParseException;
 
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.listener.SkipListener;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.batch.infrastructure.item.ItemReader;
+import org.springframework.batch.infrastructure.item.ItemStream;
 import org.springframework.batch.infrastructure.item.ItemWriter;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.batch.infrastructure.item.support.SingleItemPeekableItemReader;
+import org.springframework.batch.infrastructure.repeat.policy.SimpleCompletionPolicy;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -65,8 +68,8 @@ public class BatchConfig {
             .retryLimit(3)
             .retry(CannotAcquireLockException.class)
             .retry(TransientDataAccessException.class)
-            .listener(stepListener)
             .listener(skipListener)
+            .listener(stepListener)
             .taskExecutor(taskExecutor)
             .build();
     }
@@ -98,7 +101,7 @@ public class BatchConfig {
     ) {
 
         return new StepBuilder("interesStep", jobRepository)
-            .<Interes, Interes>chunk(5, transactionManager)
+            .<Interes, Interes>chunk(new SimpleCompletionPolicy(5), transactionManager)
             .reader(interesItemReader)
             .processor(interesItemProcessor)
             .writer(interesItemWriter)
@@ -110,8 +113,9 @@ public class BatchConfig {
             .retryLimit(3)
             .retry(CannotAcquireLockException.class)
             .retry(TransientDataAccessException.class)
-            .listener(stepListener)
             .listener(skipListener)
+            .listener(stepListener)
+            .stream((ItemStream) interesItemReader)
             .taskExecutor(taskExecutor)
             .build();
     }
@@ -157,8 +161,8 @@ public class BatchConfig {
             .retryLimit(3)
             .retry(CannotAcquireLockException.class)
             .retry(TransientDataAccessException.class)
-            .listener(stepListener)
             .listener(skipListener)
+            .listener(stepListener)
             .taskExecutor(taskExecutor)
             .build();
     
@@ -173,7 +177,7 @@ public class BatchConfig {
         SingleItemPeekableItemReader<MovimientoCuenta> movimientoCuentaPeekableReader,
         EstadoCuentaItemProcessor estadoCuentaItemProcessor,
         ItemWriter<EstadoCuenta> estadoCuentaItemWriter,
-        BancoStepExecutionListener bancoStepListener,
+        BancoStepExecutionListener stepListener,
         EstadoCuentaSkipListener skipListener
     ){
         ItemReader<MovimientoCuenta> reader = () -> {
@@ -202,8 +206,8 @@ public class BatchConfig {
             .retryLimit(3)
             .retry(CannotAcquireLockException.class)
             .retry(TransientDataAccessException.class)
-            .listener(bancoStepListener)
             .listener(skipListener)
+            .listener(stepListener)
             .build();
     }
 
