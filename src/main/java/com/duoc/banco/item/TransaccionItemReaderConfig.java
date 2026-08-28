@@ -17,7 +17,7 @@ import com.duoc.banco.model.Transaccion;
 @Configuration
 public class TransaccionItemReaderConfig {
 
-    // Formatos de fecha validos en el archivo
+    // Formatos de fecha válidos en el archivo
     private static final DateTimeFormatter[] FORMATOS = {
         DateTimeFormatter.ofPattern("yyyy-MM-dd"),
         DateTimeFormatter.ofPattern("dd-MM-yyyy"),
@@ -44,7 +44,7 @@ public class TransaccionItemReaderConfig {
             .build();
         
         reader.setCurrentItemCount(start); // Límite inferior de la partición 
-        reader.setMaxItemCount(end + 1); // Límite superiro de la partición (se suma 1 porque maxItemCount es exclusivo)
+        reader.setMaxItemCount(end + 1); // Límite superior de la partición (se suma 1 porque maxItemCount es exclusivo)
 
         return reader;
     }
@@ -76,7 +76,7 @@ public class TransaccionItemReaderConfig {
                 // Ignorar y probar el siguiente formato
             }
         }
-        // Si el String no corresponde a un formato valido, lanza una excepcion (produce un Skip)
+        // Si el String no corresponde a un formato valido, lanza una excepción (produce un Skip)
         throw new DateTimeParseException("No se pudo parsear la fecha: " + fechaStr, fechaStr, 0);
     }
 }

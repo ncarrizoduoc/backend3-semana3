@@ -122,7 +122,7 @@ public class BatchConfig {
     public Partitioner transaccionPartitioner() {
         return gridSize -> {
             Map<String, ExecutionContext> partitions = new HashMap<>();
-            int totalData = 1000;
+            int totalData = 1000; // Cantidad total de filas con datos en transacciones.csv
             int partitionSize = (int) Math.ceil((double) totalData / gridSize);
 
             int start = 0;
