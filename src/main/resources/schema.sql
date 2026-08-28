@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS intereses (
     edad INT NOT NULL,
     tipo VARCHAR(50) NOT NULL,
     tasa_interes DECIMAL(10, 2) NOT NULL,
-    PRIMARY KEY (cuenta_id, tipo)
+    PRIMARY KEY (cuenta_id, nombre, tipo)
 );
 
 -- Tabla para almacenar y ordenar los movimientos de cuentas_anuales.csv

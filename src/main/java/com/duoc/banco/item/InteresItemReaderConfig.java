@@ -14,12 +14,14 @@ import com.duoc.banco.model.Interes;
 @Configuration
 public class InteresItemReaderConfig {
 
-    @Bean
+    @Bean(name = "interesItemReader")
     @StepScope
     public FlatFileItemReader<Interes> interesItemReader(
-        @Value("${app.input-intereses}") Resource inputFile
+        @Value("${app.input-intereses}") Resource inputFile,
+        @Value("#{stepExecutionContext['start']}") int start, // Inyecta el límite inferior de la partición
+        @Value("#{stepExecutionContext['end']}") int end // Inyecta el límite superior de la partición
     ) {
-        return new FlatFileItemReaderBuilder<Interes>()
+        FlatFileItemReader<Interes> reader =  new FlatFileItemReaderBuilder<Interes>()
             .name("interesItemReader")
             .resource(inputFile)
             .encoding("UTF-8")
@@ -29,6 +31,11 @@ public class InteresItemReaderConfig {
             .names("cuentaId", "nombre", "saldo", "edad", "tipo")
             .fieldSetMapper(interesFieldSetMapper())
             .build();
+        
+        reader.setCurrentItemCount(start); // Límite inferior de la partición 
+        reader.setMaxItemCount(end + 1); // Límite superior de la partición (se suma 1 porque maxItemCount es exclusivo)
+
+        return reader;
     }
 
     private FieldSetMapper<Interes> interesFieldSetMapper() {

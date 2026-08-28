@@ -100,7 +100,7 @@ public class BatchConfig {
         TransaccionSkipListener skipListener
     ) {
         return new StepBuilder("transaccionMinionStep", jobRepository)
-            .<Transaccion, Transaccion>chunk(5, transactionManager)
+            .<Transaccion, Transaccion>chunk(25, transactionManager)
             .reader(transaccionItemReader)
             .processor(transaccionItemProcessor)
             .writer(transaccionItemWriter)
@@ -148,26 +148,61 @@ public class BatchConfig {
     // Job para calcular tasas de interes por cuenta y generar saldos resultantes
     //----------------------------------------------------------------------------
 
-    // Step para procesamiento de intereses
+    // Job para procesamiento de intereses
     @Bean
-    public Step interesStep(
+    public Job interesJob(
+        JobRepository jobRepository,
+        @Qualifier("interesPartitionStep") Step interesPartitionStep,
+        InteresJobCompletionListener jobCompletionListener
+    ) {
+        return new JobBuilder("interesJob", jobRepository)
+        .start(interesPartitionStep)
+        .listener(jobCompletionListener)
+        .build();
+    }
+
+    @Bean(name = "interesPartitionHandler")
+    public TaskExecutorPartitionHandler interesPartitionHandler(
+        @Qualifier("interesMinionStep") Step interesMinionStep, 
+        @Qualifier("interesTaskExecutor") TaskExecutor taskExecutor
+    ) {
+        TaskExecutorPartitionHandler handler = new TaskExecutorPartitionHandler();
+        handler.setStep(interesMinionStep);
+        handler.setTaskExecutor(taskExecutor);
+        handler.setGridSize(4); // Número de particiones
+        return handler;
+    }
+
+    @Bean(name = "interesPartitionStep")
+    public Step interesPartitionStep(
+        JobRepository jobRepository,
+        @Qualifier("interesPartitionHandler") TaskExecutorPartitionHandler partitionHandler,
+        @Qualifier("interesPartitioner") Partitioner partitioner
+    ) {
+        return new StepBuilder("interesPartitionStep", jobRepository)
+                .partitioner("interesMinionStep", partitioner)
+                .partitionHandler(partitionHandler)
+                .build();
+    }
+
+    // Step para procesamiento de intereses
+    @Bean(name = "interesMinionStep")
+    public Step interesMinionStep(
         JobRepository jobRepository,
         PlatformTransactionManager transactionManager,
         ItemReader<Interes> interesItemReader,
         ItemProcessor<Interes, Interes> interesItemProcessor,
         ItemWriter<Interes> interesItemWriter,
-        @Qualifier("interesTaskExecutor") ThreadPoolTaskExecutor taskExecutor,
         BancoStepExecutionListener stepListener,
         InteresSkipListener skipListener
     ) {
-
-        return new StepBuilder("interesStep", jobRepository)
-            .<Interes, Interes>chunk(new SimpleCompletionPolicy(5), transactionManager)
+        return new StepBuilder("interesMinionStep", jobRepository)
+            .<Interes, Interes>chunk(25, transactionManager)
             .reader(interesItemReader)
             .processor(interesItemProcessor)
             .writer(interesItemWriter)
             .faultTolerant()
-            .skipLimit(100)
+            .skipLimit(1000)
             .skip(InteresNoValidoException.class)
             .skip(FlatFileParseException.class)
             .skip(NumberFormatException.class)
@@ -178,22 +213,35 @@ public class BatchConfig {
             .listener(skipListener)
             .listener(stepListener)
             .stream((ItemStream) interesItemReader)
-            .taskExecutor(taskExecutor)
             .build();
     }
 
-    // Job para procesamiento de intereses
-    @Bean
-    public Job interesJob(
-        JobRepository jobRepository,
-        Step interesStep,
-        InteresJobCompletionListener jobCompletionListener
-    ) {
-        return new JobBuilder("interesJob", jobRepository)
-        .start(interesStep)
-        .listener(jobCompletionListener)
-        .build();
+    @Bean(name = "interesPartitioner")
+    public Partitioner interesPartitioner() {
+        return gridSize -> {
+            Map<String, ExecutionContext> partitions = new HashMap<>();
+            int totalData = 1000; // Cantidad total de filas con datos en intereses.csv
+            int partitionSize = (int) Math.ceil((double) totalData / gridSize);
+
+            int start = 0;
+            for (int i = 0; i < gridSize; i++) {
+                ExecutionContext context = new ExecutionContext();
+                int end = Math.min(start + partitionSize - 1, totalData - 1);
+
+                context.putInt("start", start);
+                context.putInt("end", end);
+                context.putString("partitionName", "partition" + i);
+                partitions.put("partition" + i, context);
+
+                start += partitionSize;
+                if (start >= totalData) {
+                    break;
+                }
+            }
+            return partitions;
+        };
     }
+
 
     //-------------------------------------------------------------------
     // Job para procesar movimientos y generar estados de cuenta anuales
