@@ -19,7 +19,6 @@ import org.springframework.batch.infrastructure.item.ItemWriter;
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.FlatFileParseException;
 import org.springframework.batch.infrastructure.item.support.SingleItemPeekableItemReader;
-import org.springframework.batch.infrastructure.repeat.policy.SimpleCompletionPolicy;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
