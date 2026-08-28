@@ -1,4 +1,4 @@
-package com.duoc.banco.config;
+package com.duoc.banco.item;
 
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.batch.infrastructure.item.file.builder.FlatFileItemReaderBuilder;

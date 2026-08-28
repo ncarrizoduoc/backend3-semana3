@@ -1,21 +1,22 @@
-package com.duoc.banco.config;
+package com.duoc.banco.item;
 
 import org.springframework.batch.infrastructure.item.ItemWriter;
 import org.springframework.batch.infrastructure.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Component;
 
-import com.duoc.banco.model.EstadoCuenta;
+import com.duoc.banco.model.Transaccion;
 
-@Component
-public class EstadoCuentaItemWriterConfig {
+@Configuration
+public class TransaccionItemWriterConfig {
+
     @Bean
-    public ItemWriter<EstadoCuenta> estadoCuentaItemWriter(
+    public ItemWriter<Transaccion> transaccionItemWriter(
         NamedParameterJdbcTemplate namedParameterJdbcTemplate
     ) {
-        return new JdbcBatchItemWriterBuilder<EstadoCuenta>()
+        return new JdbcBatchItemWriterBuilder<Transaccion>()
             .namedParametersJdbcTemplate(
                 namedParameterJdbcTemplate
             )
@@ -23,8 +24,8 @@ public class EstadoCuentaItemWriterConfig {
                 new BeanPropertyItemSqlParameterSourceProvider<>()
             )
             .sql(
-                "INSERT INTO estado_cuenta (cuenta_id, ingresos, salidas, diferencia) " +
-                "VALUES (:cuentaId, :ingresos, :salidas, :diferencia)"
+                "INSERT INTO transacciones (id, fecha, monto, tipo, observaciones) " +
+                "VALUES (:id, :fecha, :monto, :tipo, :observaciones)"
             )
             .assertUpdates(true) // Verifica que se haya actualizado al menos una fila en la base de datos
             .build();

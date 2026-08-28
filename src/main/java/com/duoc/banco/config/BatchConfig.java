@@ -1,13 +1,17 @@
 package com.duoc.banco.config;
 
 import java.time.format.DateTimeParseException;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.listener.SkipListener;
+import org.springframework.batch.core.partition.Partitioner;
+import org.springframework.batch.core.partition.support.TaskExecutorPartitionHandler;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.batch.infrastructure.item.ItemStream;
@@ -19,7 +23,9 @@ import org.springframework.batch.infrastructure.repeat.policy.SimpleCompletionPo
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,49 +49,104 @@ import com.duoc.banco.processor.EstadoCuentaItemProcessor;
 @Configuration
 public class BatchConfig {
 
-    // Paso para procesamiento de transacciones
-    @Bean
-    public Step transaccionStep(
-        JobRepository jobRepository,
-        PlatformTransactionManager transactionManager,
-        ItemReader<Transaccion> transaccionItemReader,
-        ItemProcessor<Transaccion, Transaccion> transaccionItemProcessor,
-        ItemWriter<Transaccion> transaccionItemWriter,
-        @Qualifier("transaccionTaskExecutor") ThreadPoolTaskExecutor taskExecutor,
-        BancoStepExecutionListener stepListener,
-        TransaccionSkipListener skipListener
-    ) {
-        return new StepBuilder("transaccionStep", jobRepository)
-            .<Transaccion, Transaccion>chunk(5, transactionManager)
-            .reader(transaccionItemReader)
-            .processor(transaccionItemProcessor)
-            .writer(transaccionItemWriter)
-            .faultTolerant()
-            .skipLimit(5)
-            .skip(FlatFileParseException.class)
-            .skip(DateTimeParseException.class)
-            .skip(NumberFormatException.class)
-            .retryLimit(3)
-            .retry(CannotAcquireLockException.class)
-            .retry(TransientDataAccessException.class)
-            .listener(skipListener)
-            .listener(stepListener)
-            .taskExecutor(taskExecutor)
-            .build();
-    }
+    //-------------------------------------------------------------------
+    // Job para identificar transacciones anomalas
+    //-------------------------------------------------------------------
 
     // Job para procesamiento de transacciones
     @Bean
     public Job transaccionJob(
         JobRepository jobRepository,
-        Step transaccionStep,
+        @Qualifier("transaccionPartitionStep") Step transaccionPartitionStep,
         TransaccionJobCompletionListener jobCompletionListener
     ) {
         return new JobBuilder("transaccionJob", jobRepository)
-        .start(transaccionStep)
+        .start(transaccionPartitionStep)
         .listener(jobCompletionListener)
         .build();
     }
+
+    @Bean(name = "transaccionPartitionHandler")
+    public TaskExecutorPartitionHandler transaccionPartitionHandler(
+        @Qualifier("transaccionMinionStep") Step transaccionMinionStep, 
+        @Qualifier("transaccionTaskExecutor") TaskExecutor taskExecutor
+    ) {
+        TaskExecutorPartitionHandler handler = new TaskExecutorPartitionHandler();
+        handler.setStep(transaccionMinionStep);
+        handler.setTaskExecutor(taskExecutor);
+        handler.setGridSize(4); // Número de particiones
+        return handler;
+    }
+
+    @Bean(name = "transaccionPartitionStep")
+    public Step transaccionPartitionStep(JobRepository jobRepository, 
+                              @Qualifier("transaccionPartitionHandler") TaskExecutorPartitionHandler partitionHandler,
+                              @Qualifier("transaccionPartitioner") Partitioner partitioner) {
+        return new StepBuilder("transaccionPartitionStep", jobRepository)
+                .partitioner("transaccionMinionStep", partitioner)
+                .partitionHandler(partitionHandler)
+                .build();
+    }
+
+    // Step para procesamiento de transacciones
+    @Bean(name = "transaccionMinionStep")
+    public Step transaccionMinionStep(
+        JobRepository jobRepository,
+        PlatformTransactionManager transactionManager,
+        ItemReader<Transaccion> transaccionItemReader,
+        ItemProcessor<Transaccion, Transaccion> transaccionItemProcessor,
+        ItemWriter<Transaccion> transaccionItemWriter,
+        BancoStepExecutionListener stepListener,
+        TransaccionSkipListener skipListener
+    ) {
+        return new StepBuilder("transaccionMinionStep", jobRepository)
+            .<Transaccion, Transaccion>chunk(5, transactionManager)
+            .reader(transaccionItemReader)
+            .processor(transaccionItemProcessor)
+            .writer(transaccionItemWriter)
+            .faultTolerant()
+            .skipLimit(100)
+            .skip(FlatFileParseException.class)
+            .skip(DateTimeParseException.class)
+            .skip(NumberFormatException.class)
+            .skip(DuplicateKeyException.class)
+            .retryLimit(3)
+            .retry(CannotAcquireLockException.class)
+            .retry(TransientDataAccessException.class)
+            .listener(skipListener)
+            .listener(stepListener)
+            .build();
+    }    
+
+    @Bean(name = "transaccionPartitioner")
+    public Partitioner transaccionPartitioner() {
+        return gridSize -> {
+            Map<String, ExecutionContext> partitions = new HashMap<>();
+            int totalData = 1000;
+            int partitionSize = (int) Math.ceil((double) totalData / gridSize);
+
+            int start = 0;
+            for (int i = 0; i < gridSize; i++) {
+                ExecutionContext context = new ExecutionContext();
+                int end = Math.min(start + partitionSize - 1, totalData - 1);
+
+                context.putInt("start", start);
+                context.putInt("end", end);
+                context.putString("partitionName", "partition" + i);
+                partitions.put("partition" + i, context);
+
+                start += partitionSize;
+                if (start >= totalData) {
+                    break;
+                }
+            }
+            return partitions;
+        };
+    }
+
+    //----------------------------------------------------------------------------
+    // Job para calcular tasas de interes por cuenta y generar saldos resultantes
+    //----------------------------------------------------------------------------
 
     // Step para procesamiento de intereses
     @Bean
@@ -106,10 +167,11 @@ public class BatchConfig {
             .processor(interesItemProcessor)
             .writer(interesItemWriter)
             .faultTolerant()
-            .skipLimit(5)
+            .skipLimit(100)
             .skip(InteresNoValidoException.class)
             .skip(FlatFileParseException.class)
             .skip(NumberFormatException.class)
+            .skip(DuplicateKeyException.class)
             .retryLimit(3)
             .retry(CannotAcquireLockException.class)
             .retry(TransientDataAccessException.class)
@@ -154,7 +216,7 @@ public class BatchConfig {
             .reader(movimientoCuentaItemReader)
             .writer(movimientoCuentaItemWriter)
             .faultTolerant()
-            .skipLimit(5)
+            .skipLimit(100)
             .skip(FlatFileParseException.class)
             .skip(DateTimeParseException.class)
             .skip(NumberFormatException.class)
@@ -198,7 +260,7 @@ public class BatchConfig {
             .processor(estadoCuentaItemProcessor)
             .writer(estadoCuentaItemWriter)
             .faultTolerant()
-            .skipLimit(5)
+            .skipLimit(100)
             .skip(MovimientoCuentaNoValidoException.class)
             .skip(FlatFileParseException.class)
             .skip(DateTimeParseException.class)

@@ -1,15 +1,20 @@
 package com.duoc.banco.listener.job;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.listener.JobExecutionListener;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PreDestroy;
+
 @Component
 public class EstadoCuentaCompletionListener implements JobExecutionListener{
 
     private final ThreadPoolTaskExecutor taskExecutor;
+    private final static Logger logger = LoggerFactory.getLogger(EstadoCuentaCompletionListener.class);
 
     public EstadoCuentaCompletionListener(
         @Qualifier("movimientoCuentaTaskExecutor") ThreadPoolTaskExecutor taskExecutor
@@ -17,17 +22,29 @@ public class EstadoCuentaCompletionListener implements JobExecutionListener{
         this.taskExecutor = taskExecutor;
     }
 
+    @PreDestroy
+    public void shutdown(){
+        taskExecutor.shutdown();
+    }
+
     @Override
     public void beforeJob(JobExecution jobExecution) {
         // Lógica antes de la ejecución del Job
-        System.out.println("Iniciando el job: " + jobExecution.getJobInstance().getJobName());
+        logger.info("Iniciando el job: " + jobExecution.getJobInstance().getJobName());
     }
 
     @Override
     public void afterJob(JobExecution jobExecution) {
         // Lógica después de la ejecución del Job
-        taskExecutor.shutdown();
-        System.out.println("Fin del job: " + jobExecution.getJobInstance().getJobName());
+        shutdown();
+        if (jobExecution.getStatus().isUnsuccessful()){
+            logger.warn("Error en la ejecucion del Job {}. Revisar skips y reintentos.", jobExecution.getJobInstance().getJobName());
+        } else {
+            logger.info("Job completado exitosamente con ID: {}", jobExecution.getId());
+        }
+        logger.info("Resumen del Job: {}", jobExecution.toString());
+
+
     }
 
 }

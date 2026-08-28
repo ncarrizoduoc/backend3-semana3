@@ -1,4 +1,4 @@
-package com.duoc.banco.config;
+package com.duoc.banco.item;
 
 import org.springframework.batch.infrastructure.item.database.BeanPropertyItemSqlParameterSourceProvider;
 import org.springframework.batch.infrastructure.item.database.JdbcBatchItemWriter;

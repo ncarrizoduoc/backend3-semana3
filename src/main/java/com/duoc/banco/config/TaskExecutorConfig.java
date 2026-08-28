@@ -11,8 +11,8 @@ public class TaskExecutorConfig {
     @Bean(name = "transaccionTaskExecutor")
     public ThreadPoolTaskExecutor transaccionTaskExecutor(){
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(25);
         executor.setThreadNamePrefix("TransaccionThread-");
         executor.initialize();
@@ -22,8 +22,8 @@ public class TaskExecutorConfig {
     @Bean(name = "interesTaskExecutor")
     public ThreadPoolTaskExecutor interesTaskExecutor(){
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(25);
         executor.setThreadNamePrefix("InteresThread-");
         executor.initialize();
@@ -33,8 +33,8 @@ public class TaskExecutorConfig {
     @Bean(name = "movimientoCuentaTaskExecutor")
     public ThreadPoolTaskExecutor movimientoCuentaTaskExecutor(){
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(25);
         executor.setThreadNamePrefix("MovimientoCuentaThread-");
         executor.initialize();
