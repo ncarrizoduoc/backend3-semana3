@@ -19,7 +19,7 @@ public class MovimientoCuentaItemWriterConfig {
         return new JdbcBatchItemWriterBuilder<MovimientoCuenta>()
             .namedParametersJdbcTemplate(namedParameterJdbcTemplate)
             .itemSqlParameterSourceProvider(new BeanPropertyItemSqlParameterSourceProvider<>())
-            .sql("INSERT INTO movimiento_cuenta (id, cuenta_id, monto, descripcion) VALUES (:id, :cuentaId, :monto, :descripcion)")
+            .sql("INSERT INTO movimiento_cuenta (cuenta_id, monto, descripcion) VALUES (:cuentaId, :monto, :descripcion)")
             .assertUpdates(true)
             .build();
     }

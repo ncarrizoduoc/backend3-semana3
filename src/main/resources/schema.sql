@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS intereses (
 
 -- Tabla para almacenar y ordenar los movimientos de cuentas_anuales.csv
 CREATE TABLE IF NOT EXISTS movimiento_cuenta (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     cuenta_id BIGINT NOT NULL,
     monto INT NOT NULL,
     descripcion VARCHAR(255) NOT NULL

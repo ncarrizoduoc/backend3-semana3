@@ -26,7 +26,6 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.TransientDataAccessException;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.duoc.banco.exception.InteresNoValidoException;
@@ -99,7 +98,7 @@ public class BatchConfig {
         TransaccionSkipListener skipListener
     ) {
         return new StepBuilder("transaccionMinionStep", jobRepository)
-            .<Transaccion, Transaccion>chunk(25, transactionManager)
+            .<Transaccion, Transaccion>chunk(50, transactionManager)
             .reader(transaccionItemReader)
             .processor(transaccionItemProcessor)
             .writer(transaccionItemWriter)
@@ -131,8 +130,8 @@ public class BatchConfig {
 
                 context.putInt("start", start);
                 context.putInt("end", end);
-                context.putString("partitionName", "partition" + i);
-                partitions.put("partition" + i, context);
+                context.putString("partitionName", "transaccion-partition-" + i);
+                partitions.put("transaccion-partition-" + i, context);
 
                 start += partitionSize;
                 if (start >= totalData) {
@@ -196,7 +195,7 @@ public class BatchConfig {
         InteresSkipListener skipListener
     ) {
         return new StepBuilder("interesMinionStep", jobRepository)
-            .<Interes, Interes>chunk(25, transactionManager)
+            .<Interes, Interes>chunk(50, transactionManager)
             .reader(interesItemReader)
             .processor(interesItemProcessor)
             .writer(interesItemWriter)
@@ -229,8 +228,8 @@ public class BatchConfig {
 
                 context.putInt("start", start);
                 context.putInt("end", end);
-                context.putString("partitionName", "partition" + i);
-                partitions.put("partition" + i, context);
+                context.putString("partitionName", "interes-partition-" + i);
+                partitions.put("interes-partition-" + i, context);
 
                 start += partitionSize;
                 if (start >= totalData) {
@@ -246,20 +245,62 @@ public class BatchConfig {
     // Job para procesar movimientos y generar estados de cuenta anuales
     //-------------------------------------------------------------------
 
+    // Job para procesar movimientos y generar estados de cuenta
+    @Bean
+    public Job generarEstadosDeCuentaJob(
+        JobRepository jobRepository,
+        @Qualifier("movCuentaPartitionStep") Step leerYGuardarMovimientosDeCuentaStep,
+        Step generarEstadosDeCuentaStep,
+        EstadoCuentaCompletionListener jobCompletionListener
+    ){
+        return new org.springframework.batch.core.job.builder.JobBuilder(
+            "generarEstadosDeCuentaJob",
+            jobRepository
+        )
+        .start(leerYGuardarMovimientosDeCuentaStep)
+        .next(generarEstadosDeCuentaStep)
+        .listener(jobCompletionListener)
+        .build();
+    }
+
     // Step 1: Leer movimientos de cuentas desde el CSV y guardarlos en 
     // la tabla temporal MOVIMIENTO_CUENTA en base de datos
-    @Bean
-    public Step leerYGuardarMovimientosDeCuentaStep(
+
+    @Bean(name = "movCuentaPartitionHandler")
+    public TaskExecutorPartitionHandler movCuentaPartitionHandler(
+        @Qualifier("movCuentaMinionStep") Step movCuentaMinionStep, 
+        @Qualifier("movimientoCuentaTaskExecutor") TaskExecutor taskExecutor
+    ) {
+        TaskExecutorPartitionHandler handler = new TaskExecutorPartitionHandler();
+        handler.setStep(movCuentaMinionStep);
+        handler.setTaskExecutor(taskExecutor);
+        handler.setGridSize(4); // Número de particiones
+        return handler;
+    }
+
+    @Bean(name = "movCuentaPartitionStep")
+    public Step movCuentaPartitionStep(
+        JobRepository jobRepository,
+        @Qualifier("movCuentaPartitionHandler") TaskExecutorPartitionHandler partitionHandler,
+        @Qualifier("movCuentaPartitioner") Partitioner partitioner
+    ) {
+        return new StepBuilder("movCuentaPartitionStep", jobRepository)
+                .partitioner("movCuentaMinionStep", partitioner)
+                .partitionHandler(partitionHandler)
+                .build();
+    }
+
+    @Bean(name = "movCuentaMinionStep")
+    public Step movCuentaMinionStep(
         JobRepository jobRepository,
         PlatformTransactionManager transactionManager,
-        FlatFileItemReader<MovimientoCuenta> movimientoCuentaItemReader,
+        @Qualifier("movimientoCuentaItemReader") FlatFileItemReader<MovimientoCuenta> movimientoCuentaItemReader,
         ItemWriter<MovimientoCuenta> movimientoCuentaItemWriter,
-        @Qualifier("movimientoCuentaTaskExecutor") ThreadPoolTaskExecutor taskExecutor,
         BancoStepExecutionListener stepListener,
         MovimientoCuentaSkipListener skipListener
     ){
-       return new StepBuilder("leerYGuardarMovimientosDeCuentaStep", jobRepository)
-            .<MovimientoCuenta, MovimientoCuenta>chunk(5, transactionManager)
+       return new StepBuilder("movCuentaMinionStep", jobRepository)
+            .<MovimientoCuenta, MovimientoCuenta>chunk(50, transactionManager)
             .reader(movimientoCuentaItemReader)
             .writer(movimientoCuentaItemWriter)
             .faultTolerant()
@@ -272,9 +313,33 @@ public class BatchConfig {
             .retry(TransientDataAccessException.class)
             .listener(skipListener)
             .listener(stepListener)
-            .taskExecutor(taskExecutor)
             .build();
-    
+    }
+
+    @Bean(name = "movCuentaPartitioner")
+    public Partitioner movCuentaPartitioner() {
+        return gridSize -> {
+            Map<String, ExecutionContext> partitions = new HashMap<>();
+            int totalData = 1000; // Cantidad total de filas con datos en cuentas_anuales.csv
+            int partitionSize = (int) Math.ceil((double) totalData / gridSize);
+
+            int start = 0;
+            for (int i = 0; i < gridSize; i++) {
+                ExecutionContext context = new ExecutionContext();
+                int end = Math.min(start + partitionSize - 1, totalData - 1);
+
+                context.putInt("start", start);
+                context.putInt("end", end);
+                context.putString("partitionName", "movCuenta-partition-" + i);
+                partitions.put("movCuenta-partition-" + i, context);
+
+                start += partitionSize;
+                if (start >= totalData) {
+                    break;
+                }
+            }
+            return partitions;
+        };
     }
 
     // Step 2: Leer movimientos de cuentas desde la tabla temporal MOVIMIENTO_CUENTA,
@@ -318,24 +383,6 @@ public class BatchConfig {
             .listener(skipListener)
             .listener(stepListener)
             .build();
-    }
-
-    // Job para procesar movimientos y generar estados de cuenta
-    @Bean
-    public Job generarEstadosDeCuentaJob(
-        JobRepository jobRepository,
-        Step leerYGuardarMovimientosDeCuentaStep,
-        Step generarEstadosDeCuentaStep,
-        EstadoCuentaCompletionListener jobCompletionListener
-    ){
-        return new org.springframework.batch.core.job.builder.JobBuilder(
-            "generarEstadosDeCuentaJob",
-            jobRepository
-        )
-        .start(leerYGuardarMovimientosDeCuentaStep)
-        .next(generarEstadosDeCuentaStep)
-        .listener(jobCompletionListener)
-        .build();
     }
 
 }

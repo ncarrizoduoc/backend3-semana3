@@ -17,15 +17,18 @@ public class BancoStepExecutionListener implements StepExecutionListener {
     @Override
     public ExitStatus afterStep(StepExecution stepExecution) {
         // Lógica después de la ejecución del paso
-        System.out.println("Fin del paso: " + stepExecution.getStepName());
         
         long readSkipCount = stepExecution.getReadSkipCount();
         long processSkipCount = stepExecution.getProcessSkipCount();
         long writeSkipCount = stepExecution.getWriteSkipCount();
         
-        System.out.println("Skips en lectura: " +  readSkipCount);
-        System.out.println("Skips en procesamiento: " +  processSkipCount);
-        System.out.println("Skips en escritura: " +  writeSkipCount);
+        // Generar mensaje con nombre del paso y conteo de skips por fase (lectura, procesamiento y escritura)
+        System.out.println(
+            "Fin del paso: " + stepExecution.getStepName() +
+            "\nSkips en lectura: " + readSkipCount +
+            "\nSkips en procesamiento: " +  processSkipCount +
+            "\nSkips en escritura: " +  writeSkipCount
+        );
         
         return stepExecution.getExitStatus();
     }

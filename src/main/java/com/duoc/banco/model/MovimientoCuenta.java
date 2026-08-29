@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MovimientoCuenta {
-    private Long id;
     private Long cuentaId;
     private Integer monto;
     private String descripcion;
