@@ -349,8 +349,8 @@ public class BatchConfig {
     public Step generarEstadosDeCuentaStep(
         JobRepository jobRepository,
         PlatformTransactionManager transactionManager,
-        ItemReader<EstadoCuenta> estadoCuentaItemReader, // Inyectamos el nuevo reader agrupado
-        SingleItemPeekableItemReader<MovimientoCuenta> movimientoCuentaPeekableReader, // Necesario para registrar el Stream
+        ItemReader<EstadoCuenta> estadoCuentaItemReader, // Reader que agrupa los movimientos de cuenta en estados
+        SingleItemPeekableItemReader<MovimientoCuenta> movimientoCuentaPeekableReader,
         EstadoCuentaItemProcessor estadoCuentaItemProcessor,
         ItemWriter<EstadoCuenta> estadoCuentaItemWriter,
         BancoStepExecutionListener stepListener,
@@ -376,9 +376,9 @@ public class BatchConfig {
             .build();
     }
 
-    //-------------------------------------------
-    // Policitas para retry y backoff
-    //-------------------------------------------
+    //---------------------------------------------
+    // Policitas para retry (reintentos) y backoff
+    //---------------------------------------------
 
     @Bean
     public SimpleRetryPolicy retryPolicy() {
