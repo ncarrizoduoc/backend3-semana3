@@ -10,48 +10,28 @@ public class TaskExecutorConfig {
 
     @Bean(name = "transaccionTaskExecutor")
     public ThreadPoolTaskExecutor transaccionTaskExecutor(){
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(25);
-        executor.setThreadNamePrefix("TransaccionThread-");
-        executor.initialize();
-        return executor;
+        return taskExecutor(4, 8, 50, "TransaccionThread-");
     }
 
     @Bean(name = "interesTaskExecutor")
     public ThreadPoolTaskExecutor interesTaskExecutor(){
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(25);
-        executor.setThreadNamePrefix("InteresThread-");
-        executor.initialize();
-        return executor;
+        return taskExecutor(4, 8, 50, "InteresThread-");
     }
 
     @Bean(name = "movimientoCuentaTaskExecutor")
     public ThreadPoolTaskExecutor movimientoCuentaTaskExecutor(){
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(25);
-        executor.setThreadNamePrefix("MovimientoCuentaThread-");
-        executor.initialize();
-        return executor;
+        return taskExecutor(4, 8, 50, "MovimientoCuentaThread-");
     }
 
-    /*
-    @Bean(name = "estadoCuentaTaskExecutor")
-    public ThreadPoolTaskExecutor estadoCuentaTaskExecutor(){
+    // Metodo para crear un taskExecutor con parametros
+    public ThreadPoolTaskExecutor taskExecutor(int core, int max, int queue, String nombre){
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(3);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(25);
-        executor.setThreadNamePrefix("EstadoCuentaThread-");
+        executor.setCorePoolSize(core);
+        executor.setMaxPoolSize(max);
+        executor.setQueueCapacity(queue);
+        executor.setThreadNamePrefix(nombre);
         executor.initialize();
         return executor;
     }
-    */
 
 }
