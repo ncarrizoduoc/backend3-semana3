@@ -28,7 +28,7 @@ public class TransaccionJobCompletionListener implements JobExecutionListener {
     @Override
     public void beforeJob(JobExecution jobExecution) {
         // Lógica antes de la ejecución del job
-        System.out.println("Iniciando el job: " + jobExecution.getJobInstance().getJobName());
+        logger.info("Iniciando el job: " + jobExecution.getJobInstance().getJobName());
     }
 
     @Override
