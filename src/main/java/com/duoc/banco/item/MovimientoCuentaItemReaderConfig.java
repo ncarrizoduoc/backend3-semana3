@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
+import com.duoc.banco.exception.MovimientoCuentaNoValidoException;
 import com.duoc.banco.model.MovimientoCuenta;
 
 @Configuration
@@ -44,6 +45,13 @@ public class MovimientoCuentaItemReaderConfig {
             movimientoCuenta.setCuentaId(fieldSet.readLong("cuentaId"));
             movimientoCuenta.setMonto(fieldSet.readInt("monto"));
             movimientoCuenta.setDescripcion(fieldSet.readString("descripcion"));
+
+            // Validar que el monto de la transaccion no sea 0 (se realiza en este paso porque hacerlo en el siguiente
+            // puede generar errores al agregar transacciones a los montos acumulados)
+            if (movimientoCuenta.getMonto() == 0){
+                throw new MovimientoCuentaNoValidoException("El monto del movimiento de cuenta no puede ser 0");
+            }
+            
             return movimientoCuenta;
         };
     }

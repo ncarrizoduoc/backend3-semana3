@@ -26,8 +26,11 @@ import org.springframework.core.task.TaskExecutor;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.TransientDataAccessException;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
+import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.duoc.banco.exception.EstadoCuentaNoValidoException;
 import com.duoc.banco.exception.InteresNoValidoException;
 import com.duoc.banco.exception.MovimientoCuentaNoValidoException;
 import com.duoc.banco.listener.BancoStepExecutionListener;
@@ -108,9 +111,8 @@ public class BatchConfig {
             .skip(DateTimeParseException.class)
             .skip(NumberFormatException.class)
             .skip(DuplicateKeyException.class)
-            .retryLimit(3)
-            .retry(CannotAcquireLockException.class)
-            .retry(TransientDataAccessException.class)
+            .retryPolicy(retryPolicy())
+            .backOffPolicy(backoffPolicy())
             .listener(skipListener)
             .listener(stepListener)
             .build();
@@ -205,9 +207,8 @@ public class BatchConfig {
             .skip(FlatFileParseException.class)
             .skip(NumberFormatException.class)
             .skip(DuplicateKeyException.class)
-            .retryLimit(3)
-            .retry(CannotAcquireLockException.class)
-            .retry(TransientDataAccessException.class)
+            .retryPolicy(retryPolicy())
+            .backOffPolicy(backoffPolicy())
             .listener(skipListener)
             .listener(stepListener)
             .stream((ItemStream) interesItemReader)
@@ -305,12 +306,12 @@ public class BatchConfig {
             .writer(movimientoCuentaItemWriter)
             .faultTolerant()
             .skipLimit(100)
+            .skip(MovimientoCuentaNoValidoException.class)
             .skip(FlatFileParseException.class)
             .skip(DateTimeParseException.class)
             .skip(NumberFormatException.class)
-            .retryLimit(3)
-            .retry(CannotAcquireLockException.class)
-            .retry(TransientDataAccessException.class)
+            .retryPolicy(retryPolicy())
+            .backOffPolicy(backoffPolicy())
             .listener(skipListener)
             .listener(stepListener)
             .build();
@@ -348,41 +349,53 @@ public class BatchConfig {
     public Step generarEstadosDeCuentaStep(
         JobRepository jobRepository,
         PlatformTransactionManager transactionManager,
-        SingleItemPeekableItemReader<MovimientoCuenta> movimientoCuentaPeekableReader,
+        ItemReader<EstadoCuenta> estadoCuentaItemReader, // Inyectamos el nuevo reader agrupado
+        SingleItemPeekableItemReader<MovimientoCuenta> movimientoCuentaPeekableReader, // Necesario para registrar el Stream
         EstadoCuentaItemProcessor estadoCuentaItemProcessor,
         ItemWriter<EstadoCuenta> estadoCuentaItemWriter,
         BancoStepExecutionListener stepListener,
         EstadoCuentaSkipListener skipListener
     ){
-        ItemReader<MovimientoCuenta> reader = () -> {
-            MovimientoCuenta movActual = movimientoCuentaPeekableReader.read();
-            MovimientoCuenta movSiguiente = movimientoCuentaPeekableReader.peek();
-
-            if (movActual != null){
-                boolean esUltimo = (movSiguiente == null || !movSiguiente.getCuentaId().equals(movActual.getCuentaId()));
-                movActual.setUltimoDelGrupo(esUltimo);
-            }
-            return movActual;
-        };
-
         return new StepBuilder("generarEstadosDeCuentaStep", jobRepository)
-            .<MovimientoCuenta, EstadoCuenta>chunk(5, transactionManager)
-            .reader(reader)
-            .stream(movimientoCuentaPeekableReader)
+            .<EstadoCuenta, EstadoCuenta>chunk(50, transactionManager)
+            .reader(estadoCuentaItemReader)
+            .stream(movimientoCuentaPeekableReader) 
             .processor(estadoCuentaItemProcessor)
             .writer(estadoCuentaItemWriter)
             .faultTolerant()
             .skipLimit(100)
             .skip(MovimientoCuentaNoValidoException.class)
+            .skip(EstadoCuentaNoValidoException.class)
             .skip(FlatFileParseException.class)
             .skip(DateTimeParseException.class)
             .skip(NumberFormatException.class)
-            .retryLimit(3)
-            .retry(CannotAcquireLockException.class)
-            .retry(TransientDataAccessException.class)
+            .retryPolicy(retryPolicy())
+            .backOffPolicy(backoffPolicy())
             .listener(skipListener)
             .listener(stepListener)
             .build();
+    }
+
+    //-------------------------------------------
+    // Policitas para retry y backoff
+    //-------------------------------------------
+
+    @Bean
+    public SimpleRetryPolicy retryPolicy() {
+        Map<Class<? extends Throwable>, Boolean> retryableExceptions = new HashMap<>();
+        retryableExceptions.put(CannotAcquireLockException.class, true);
+        retryableExceptions.put(TransientDataAccessException.class, true);
+        // Si se produce una de las excepciones en el HashMap, se reintentará 3 veces
+        return new SimpleRetryPolicy(3, retryableExceptions, true);
+    }
+
+    @Bean
+    public ExponentialBackOffPolicy backoffPolicy() {
+        ExponentialBackOffPolicy backoffPolicy = new ExponentialBackOffPolicy();
+        backoffPolicy.setInitialInterval(1000); // Intervalo inicial de 1 segundo
+        backoffPolicy.setMultiplier(2.0); // Multiplicador para el intervalo exponencial
+        backoffPolicy.setMaxInterval(10000); // Intervalo máximo de 10 segundos
+        return backoffPolicy;
     }
 
 }
